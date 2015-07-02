@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8 />
+<title>Leaflet Draw</title>
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+<link href='https://api.tiles.mapbox.com/mapbox.js/v2.1.9/mapbox.css' rel='stylesheet' />
+<link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.css' rel='stylesheet' />
+<link href="http://amcharts.com/lib/3/plugins/export/export.css" rel="stylesheet" type="text/css">
+<style>
+  body { margin:0; padding:0; }
+  #map { height:600px; width:50%; float:left }
+</style>
+</head>
+<body>
+
+<div id='map'></div><div id="chartdiv" style="width: 50%; height: 600px; background-color: #FFFFFF; float: right;" ></div><br>
+<button type='button' id='run' disabled>Get Profile</button>
+
+<script src='http://code.jquery.com/jquery-2.1.4.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.3.6/proj4.js'></script>
+<script src='https://api.tiles.mapbox.com/mapbox.js/v2.1.9/mapbox.js'></script>
+<script src="http://cdn-geoweb.s3.amazonaws.com/esri-leaflet/1.0.0-rc.6/esri-leaflet.js"></script>
+<script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.js'></script>
+<script type="text/javascript" src="http://cdn.amcharts.com/lib/3/amcharts.js"></script>
+<script type="text/javascript" src="http://www.amcharts.com/lib/3/serial.js"></script>
+<script src="http://amcharts.com/lib/3/plugins/export/export.js" type="text/javascript"></script>
+
+<script>
+L.mapbox.accessToken = 'pk.eyJ1Ijoiam9obnNvbjd1Z2EiLCJhIjoiUDU1VXpCNCJ9.gL2i7S0K2hnw69L5xZlTug';
+var map = L.mapbox.map('map', 'mapbox.satellite')
+	.setView([36.771701, -111.656137], 18);
+var toProj = 'PROJCS["NAD83 / Arizona Central",GEOGCS["GCS_North_American_1983",'+
+						'DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137,298.257222101]],'+
+						'PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],'+
+						'PROJECTION["Transverse_Mercator"],'+
+						'PARAMETER["latitude_of_origin",31],'+
+						'PARAMETER["central_meridian",-111.9166666666667],'+
+						'PARAMETER["scale_factor",0.9999],'+
+						'PARAMETER["false_easting",213360],'+
+						'PARAMETER["false_northing",0],UNIT["Meter",1]]';	//desired projection coordinates
+var rasUrl = 'http://arcweb.wr.usgs.gov/ArcGIS/rest/services/Physical/RM008L_20081011/ImageServer';
+L.esri.imageMapLayer(rasUrl, {
+	opacity: 0.75
+}).addTo(map);
+var featureGroup = L.featureGroup().addTo(map);
+var drawControl = new L.Control.Draw({
+	draw: {
+		polygon: false,
+		marker: false,
+		circle: false,
+		rectangle: false,
+	},
+	edit: {
+		featureGroup: featureGroup
+	}
+}).addTo(map);
+
+var coords = [];
+var coords2 = [];
+var nirs = [];
+
+map.on('draw:created', function(e) {
+	featureGroup.addLayer(e.layer);
+	var layerType = e.layerType,	//type of feature drawn (marker, polyline, polygon, etc)
+			layer = e.layer,	//the geometry of the layer
+			polyline = layer.getLatLngs(),	//array of arrays containing latitude and longitude for each vertex
+			fromProj = proj4.defs('WGS84'),	//the map projection
+			toProj = 'PROJCS["NAD83 / Arizona Central",GEOGCS["GCS_North_American_1983",'+
+								'DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137,298.257222101]],'+
+								'PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],'+
+								'PROJECTION["Transverse_Mercator"],'+
+								'PARAMETER["latitude_of_origin",31],'+
+								'PARAMETER["central_meridian",-111.9166666666667],'+
+								'PARAMETER["scale_factor",0.9999],'+
+								'PARAMETER["false_easting",213360],'+
+								'PARAMETER["false_northing",0],UNIT["Meter",1]]',	//desired projection coordinates
+			gridAz = 0,	//grid Azimuth - 0 degrees is due North (or straight up)
+			interval = 10,//$('#interval').value() || 10,	//how many times the polyline segment should be divided;
+			step = 0;	//the spacing in meters between identify points
+	coords.push(proj4(toProj, [polyline[0].lng, polyline[0].lat]));
+	for(var i=0, n=polyline.length-1; i<n; i++) {	//n=polyline.length-1 since we're interested in the lengths between vertices
+		gridAz = azimuth(polyline[i], polyline[i+1]);
+		step = distance(polyline[i], polyline[i+1]);	//divide total segment distance by the spacing interval to get the step distance
+		var j=1;
+		while(j <= step) {
+			coords.push(daz2coord(polyline[i], gridAz, j));
+			j++;
+		}
+	}
+	for(var k=0, m=coords.length; k<m; k++) {
+		//L.marker([proj4(toProj, fromProj, coords[k])[1],proj4(toProj, fromProj, coords[k])[0]]).addTo(map);
+		coords2.push([proj4(toProj, fromProj, coords[k])[1],proj4(toProj, fromProj, coords[k])[0]]);
+	}
+	$('#run').removeAttr('disabled');
+});
+
+$('#run').on('click', function() {
+	alert("Creating Profile"); //replace with 'loading...' icon (chart div appears on click with loading... icon)
+	var query = L.esri.Tasks.identifyImage({
+		//url:'http://arcweb.wr.usgs.gov/ArcGIS/rest/services/Imagery/IMAGERY_2009_05_4BAND_16B_EARTHDATA/ImageServer',
+		//url:'http://grandcanyon.usgs.gov/arcgis/rest/services/Physical/NAUSAND_RM022R_20081012/ImageServer',
+		url: 'http://arcweb.wr.usgs.gov/ArcGIS/rest/services/Physical/RM008L_20081011/ImageServer',
+		useCors: false
+	});
+	var n=coords.length,
+			finished = n,
+			marker = L.marker([0,0]).addTo(map);
+			
+	function createChart() {
+		finished--;
+		if(finished < 1) {
+			var chartData = nirs.sort(function(a, b) {
+												return a.meters-b.meters;
+											});
+			console.log(chartData);
+			function handleRoll(event) {
+				//console.log(coords2[event.index]);
+				
+				marker.setLatLng(coords2[event.index]).update();
+			}
+			AmCharts.makeChart("chartdiv",
+				{
+					"type": "serial",
+					"path": "http://www.amcharts.com/lib/3/",
+					"categoryField": "meters",
+					"startDuration": 1,
+					"creditsPosition": "bottom-right",
+					"theme": "default",
+					"categoryAxis": {
+						"startOnAxis": true,
+						"title": "Profile Distance in meters"
+					},
+					"chartCursor": {
+						"valueLineAxis": "ValueAxis-1"
+					},
+					"chartScrollbar": {
+						"dragIcon": "dragIconRoundSmall",
+						"graph": "AmGraph-1"
+					},
+					"trendLines": [],
+					"graphs": [
+						{
+							"balloonText": "[[title]] at [[category]] meters: [[value]]<br>Northing: [[northing]]<br>Easting:[[easting]]",
+							"bullet": "round",
+							"id": "AmGraph-1",
+							"title": "Elevation",
+							"valueAxis": "ValueAxis-1",
+							"valueField": "pixVal",
+							"yAxis": "ValueAxis-1"
+						}
+					],
+					"guides": [],
+					"valueAxes": [
+						{
+							"id": "ValueAxis-1",
+							"title": "Ellipsoid Height in meters"
+						}
+					],
+					"allLabels": [],
+					"balloon": {
+						"textAlign": "left"
+					},
+					"export": {
+						"enabled": true
+					},
+					"titles": [
+						{
+							"id": "Title-1",
+							"size": 15,
+							"text": "Elevation Profile"
+						}
+					],
+					"dataProvider": chartData
+				}
+			).addListener('rollOverGraphItem', handleRoll);
+		}
+	}
+	
+	function runQuery(index) {
+		query.at(coords2[index]);
+		query.run(function(error, image, response) {
+			if(error) {
+				console.log(error);
+			}
+			var nir = image.pixel.properties.value;
+			nirs.push({pixVal: nir, meters: index, northing: coords[index][1], easting: coords[index][0]});
+			createChart();
+		});
+	}
+	
+	for(var i=0; i<n; i++){
+		runQuery(i);
+	}
+});
+
+function azimuth(startPt, endPt) {
+	var startPtProj = proj4(toProj, [startPt.lng, startPt.lat]);
+	var endPtProj = proj4(toProj, [endPt.lng, endPt.lat]);
+	//console.log(endPtProj[0], endPtProj[1], startPtProj[0], startPtProj[1]);
+	var az = ((Math.atan2((endPtProj[0]-startPtProj[0]),(endPtProj[1]-startPtProj[1])))*(180/Math.PI));
+	if(az<0){
+		return az+360
+	} else {
+		return az;
+	}
+}
+
+function distance(startPt, endPt) {
+	var startPtProj = proj4(toProj, [startPt.lng, startPt.lat]);
+	var endPtProj = proj4(toProj, [endPt.lng, endPt.lat]);
+	//console.log(Math.pow(2, 2));
+	return Math.sqrt(((endPtProj[0]-startPtProj[0])*(endPtProj[0]-startPtProj[0]))+((endPtProj[1]-startPtProj[1])*(endPtProj[1]-startPtProj[1])));
+}
+
+function daz2coord(coord, az, d) {
+	var coordProj = proj4(toProj, [coord.lng, coord.lat]);
+	//console.log(coordProj, az, d);
+	return [coordProj[0]+(d*Math.sin(az / 180 * Math.PI)), coordProj[1]+(d*Math.cos(az / 180 * Math.PI))];
+}
+</script>
+</body>
+</html>
