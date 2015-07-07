@@ -14,8 +14,18 @@
 </head>
 <body>
 
-<div id='map'></div><div id="chartdiv" style="width: 50%; height: 600px; background-color: #FFFFFF; float: right;" ></div><br>
-<button type='button' id='run' disabled>Get Profile</button>
+	<div id='map'></div><div id="chartdiv" style="width: 50%; height: 600px; background-color: #FFFFFF; float: right;" ></div><br>
+	<button type='button' id='run' disabled>Get Profile</button><br>
+	<h1>Elevation Profile Instruction</h1>
+	<p>Below are instructions for using this application.  This is currently only a proof-of-concept, but functionality will be expanded.</p>
+	<ol>
+		<li>Check if image service correctly loaded (i.e., can you see the sand bar on the map?); refresh page, if not (having problems with the server).</li>
+		<li>Use the 'Draw a polyline' tool to draw a cross-section that intersects the sand bar DEM; double-click when finished with last vertex.</li>
+		<li>Click 'Get Profile' button below the map.  An alert will appear notifying you that a profile is being created.</li>
+		<li>The longer or more complex the line, the longer it will take to generate a profile (progress bar will be added in the future).</li>
+		<li>Once create, move the mouse over the chart to interactively get details.  Hovering over the chart points will update a marker on the map.</li>
+		<li>There is no 'clear' function yet, so you must refresh the page to generate another elevation profile.</li>
+	</ol>
 
 <script src='http://code.jquery.com/jquery-2.1.4.min.js'></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.3.6/proj4.js'></script>
