@@ -1,3 +1,5 @@
+**Note: ESRI web service is currently unavailable.  Feel free to fork the repo and change it to an available service.**
+
 # geoProfile_v0
 Create custom elevation profiles from hosted ESRI web services.
 
